@@ -2278,6 +2278,9 @@ func (m *Manager) reconcileLive(ctx context.Context, rec domain.SessionRecord) e
 		if relaunchErr == nil {
 			return nil
 		}
+		if errors.Is(relaunchErr, ports.ErrChatRecoveryInconclusive) {
+			return fmt.Errorf("reconcile %s: preserve detached Chat provider: %w", rec.ID, relaunchErr)
+		}
 		committed, verifyErr := m.liveRelaunchCommitted(ctx, rec)
 		if verifyErr != nil {
 			return fmt.Errorf("reconcile %s: relaunch failed (%w), then commit state became uncertain: %w", rec.ID, relaunchErr, verifyErr)

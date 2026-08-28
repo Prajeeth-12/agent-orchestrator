@@ -372,8 +372,20 @@ func (s *Service) Start(ctx context.Context, cfg StartConfig) (*Controller, erro
 		return nil, err
 	}
 	liveReconnect := false
-	if reconnected, ok := conv.(interface{ ReconnectedLive() bool }); ok {
+	if reconnected, ok := conv.(ports.ChatLiveReconnector); ok {
 		liveReconnect = reconnected.ReconnectedLive()
+	}
+	var liveRows ConversationRows
+	if liveReconnect {
+		if s.reader == nil {
+			cleanupUnpublishedConversation(conv, false)
+			return nil, fmt.Errorf("%w: durable conversation snapshot is unavailable", ports.ErrChatRecoveryInconclusive)
+		}
+		liveRows, err = s.reader.LoadConversationSnapshot(ctx, conversation.ID)
+		if err != nil {
+			cleanupUnpublishedConversation(conv, false)
+			return nil, fmt.Errorf("%w: load live conversation before reconnect: %w", ports.ErrChatRecoveryInconclusive, err)
+		}
 	}
 
 	// Claim the durable fence before the controller starts consuming events. An
@@ -404,6 +416,9 @@ func (s *Service) Start(ctx context.Context, cfg StartConfig) (*Controller, erro
 	// replaced can be told apart from the current one's.
 	controller := newController(
 		cfg.SessionID, conversation, generation, conv, s.store, s.activity, s.log, s.newID, s.now)
+	if liveReconnect {
+		controller.restoreLiveTurnOwnership(liveRows.Turns)
+	}
 	if cfg.ProviderConversationID != "" && !cfg.SkipNativeHistoryImport && !liveReconnect {
 		// The provider's native thread is the continuity authority across TUI and
 		// Chat. Import it before the live projector starts so the first notification
@@ -477,7 +492,7 @@ func (s *Service) Start(ctx context.Context, cfg StartConfig) (*Controller, erro
 // import failure cannot interrupt provider work that was already in flight.
 func cleanupUnpublishedConversation(conv ports.ChatConversation, fresh bool) {
 	if fresh {
-		if terminator, ok := conv.(interface{ Terminate() error }); ok {
+		if terminator, ok := conv.(ports.ChatProviderTerminator); ok {
 			_ = terminator.Terminate()
 			return
 		}
