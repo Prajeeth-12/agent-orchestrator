@@ -4,6 +4,7 @@ import { useTranslation } from "react-i18next";
 import type { TFunction } from "i18next";
 import {
 	SessionCardView,
+	SessionUsageMetricView,
 	type BoardPullRequestLabels,
 	type BoardSessionPresentation,
 	type BoardSplitLaneLabels,
@@ -34,6 +35,7 @@ import { AgentAvatar } from "./AgentAvatar";
 import { ProductExternalLink } from "./ProductExternalLink";
 import { SessionTerminationPopover } from "./SessionTerminationPopover";
 import { Tooltip, TooltipContent, TooltipTrigger } from "./ui/tooltip";
+import { EstimatedCostExplanation, UsageBreakdown } from "./UsageBreakdown";
 
 export function toBoardSessionPresentation(
 	session: WorkspaceSession,
@@ -244,6 +246,11 @@ function DesktopSessionCard({
 			session={toBoardSessionPresentation(session, t)}
 			translate={translate}
 			usage={usagePresentation}
+			renderUsage={
+				usage
+					? (presentation) => <BoardUsageMetric presentation={presentation} usage={usage} />
+					: undefined
+			}
 		/>
 	);
 }
@@ -260,30 +267,69 @@ function pullRequestLabels(t: TFunction): BoardPullRequestLabels {
 	};
 }
 
-// toUsagePresentation builds the card's single usage line: cost, tokens, or
-// both. The card carries no cost breakdown — a board is for scanning, and the
-// per-component figures belong on the session's own surface — so the visible
-// text is bare while the accessible label still names what the count is.
+// A card carries exactly one scan metric. Cost wins when it is known; otherwise
+// reliable tokens are the fallback. Unknown data is represented by absence,
+// never by a placeholder that competes with the session itself.
 function toUsagePresentation(
 	usage: SessionUsageSummary | undefined,
 	t: TFunction,
 ): BoardUsagePresentation | undefined {
-	const processedTokens = usage?.processedTokens ?? null;
 	if (!usage) {
 		return undefined;
 	}
-	const cost = formatEstimatedCost(usage.estimatedCost) ?? t("usage.unavailable");
+	const cost = formatEstimatedCost(usage.totals.estimatedCost);
+	if (cost) {
+		return {
+			accessibleLabel: `${t("usage.estimatedCost")}: ${cost}`,
+			compactLabel: cost,
+		};
+	}
+	const processedTokens = usage.totals.processedTokens;
 	if (processedTokens === null || processedTokens <= 0) {
-		return { accessibleLabel: cost, compactLabel: cost };
+		return undefined;
 	}
 	const compactTokens = formatTokenCount(processedTokens).replace(/ tok$/, "");
 	const accessibleTokens = t("shell.usageTokens", {
 		count: processedTokens.toLocaleString("en-US"),
 	});
 	return {
-		accessibleLabel: `${cost} · ${accessibleTokens}`,
-		compactLabel: `${cost} · ${compactTokens}`,
+		accessibleLabel: accessibleTokens,
+		compactLabel: compactTokens,
 	};
+}
+
+function BoardUsageMetric({
+	presentation,
+	usage,
+}: {
+	presentation: BoardUsagePresentation;
+	usage: SessionUsageSummary;
+}) {
+	const { t } = useTranslation();
+	return (
+		<Tooltip>
+			<TooltipTrigger asChild>
+				<button
+					aria-label={presentation.accessibleLabel}
+					className="relative z-10 rounded-sm outline-none transition-colors hover:text-foreground focus-visible:ring-2 focus-visible:ring-ring/60"
+					onClick={(event) => event.stopPropagation()}
+					onPointerDown={(event) => event.stopPropagation()}
+					type="button"
+				>
+					<SessionUsageMetricView usage={presentation} />
+				</button>
+			</TooltipTrigger>
+			<TooltipContent className="w-72 p-3 text-left" side="top">
+				<p className="mb-2 font-medium text-popover-foreground">{t("inspector.usage.title")}</p>
+				<UsageBreakdown totals={usage.totals} />
+				{usage.totals.estimatedCost ? (
+					<div className="mt-2.5 border-t border-border/70 pt-2 text-2xs leading-normal text-muted-foreground">
+						<EstimatedCostExplanation cost={usage.totals.estimatedCost} />
+					</div>
+				) : null}
+			</TooltipContent>
+		</Tooltip>
+	);
 }
 
 function ArchiveRestoreButton({

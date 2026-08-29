@@ -2,6 +2,7 @@ import { QueryClient, QueryClientProvider } from "@tanstack/react-query";
 import { act, render, screen, waitFor, within } from "@testing-library/react";
 import userEvent from "@testing-library/user-event";
 import { beforeEach, describe, expect, it, vi } from "vitest";
+import type { components } from "../../api/schema";
 import type { WorkspaceSession, WorkspaceSummary } from "../types/workspace";
 import { appI18n } from "../i18n";
 
@@ -305,12 +306,18 @@ describe("SessionsBoard", () => {
 		expect(within(idleCard).getByText("brand-font-pipeline")).toHaveClass("font-semibold", "line-clamp-2");
 	});
 
-	it("shows coverage-aware cost with tokens on active and archived cards", async () => {
+	it("shows only cost, only tokens, or no usage metric on active and archived cards", async () => {
 		workspaceQueryMock.mockReturnValue({
 			data: [
 				workspaceWithSessions([
 					boardSession({ id: "s-active", title: "active worker", status: "idle" }),
-					boardSession({ id: "s-empty", title: "empty worker", status: "idle" }),
+					boardSession({ id: "s-zero", title: "zero cost worker", status: "idle" }),
+					boardSession({
+						id: "s-empty",
+						lastUserMessageAt: "2026-01-01T00:00:00Z",
+						title: "empty worker",
+						status: "idle",
+					}),
 					boardSession({ id: "s-tokens", title: "tokens worker", status: "idle" }),
 					terminatedSession(),
 				]),
@@ -335,6 +342,39 @@ describe("SessionsBoard", () => {
 						processedTokens: 12_300,
 						totalTokens: 12_400,
 						incomplete: false,
+						totals: usageTotals(12_300, {
+							cachedInputNanos: 100_000_000,
+							coverage: "complete",
+							inputNanos: 540_000_000,
+							outputNanos: 600_000_000,
+							providerAttribution: "observed",
+							totalNanos: 1_240_000_000,
+						}),
+					},
+				],
+				[
+					"s-zero",
+					{
+						estimatedCost: {
+							cachedInputNanos: 0,
+							coverage: "complete",
+							inputNanos: 0,
+							outputNanos: 0,
+							providerAttribution: "observed",
+							totalNanos: 0,
+						},
+						incomplete: false,
+						processedTokens: 0,
+						sessionId: "s-zero",
+						totalTokens: 0,
+						totals: usageTotals(0, {
+							cachedInputNanos: 0,
+							coverage: "complete",
+							inputNanos: 0,
+							outputNanos: 0,
+							providerAttribution: "observed",
+							totalNanos: 0,
+						}),
 					},
 				],
 				[
@@ -345,6 +385,7 @@ describe("SessionsBoard", () => {
 						processedTokens: 0,
 						totalTokens: 0,
 						incomplete: false,
+						totals: usageTotals(0, null),
 					},
 				],
 				[
@@ -355,6 +396,7 @@ describe("SessionsBoard", () => {
 						processedTokens: 800,
 						totalTokens: 800,
 						incomplete: false,
+						totals: usageTotals(800, null),
 					},
 				],
 				[
@@ -372,6 +414,14 @@ describe("SessionsBoard", () => {
 						processedTokens: 1_900,
 						totalTokens: 2_000,
 						incomplete: true,
+						totals: usageTotals(1_900, {
+							cachedInputNanos: null,
+							coverage: "partial",
+							inputNanos: 5_000_000,
+							outputNanos: 15_000_000,
+							providerAttribution: "inferred",
+							totalNanos: 20_000_000,
+						}),
 					},
 				],
 			]),
@@ -379,33 +429,34 @@ describe("SessionsBoard", () => {
 
 		renderBoard("p1");
 
-		// The card shows cost and tokens and nothing else. The word "processed"
-		// only survives where a screen reader needs the count named.
-		const activeUsage = screen.getByText("$1.24 · 12.3K");
+		const activeUsage = screen.getByText("$1.24");
 		expect(activeUsage).toHaveAttribute("aria-hidden", "true");
-		expect(screen.getByText("$1.24 · 12,300 tokens")).toHaveClass("sr-only");
+		expect(within(activeUsage.closest("button") as HTMLElement).getByText("Estimated cost: $1.24")).toHaveClass(
+			"sr-only",
+		);
+		expect(screen.queryByText("12.3K")).not.toBeInTheDocument();
 		expect(screen.queryByText(/processed/i)).not.toBeInTheDocument();
-		// A null estimate stays explicit even when the summary has no tokens.
+		const zeroCostCard = screen
+			.getByText("zero cost worker")
+			.closest('[data-testid="board-session-card"]') as HTMLElement;
+		expect(within(zeroCostCard).getByText("$0.00")).toHaveAttribute("aria-hidden", "true");
 		const emptyCard = screen.getByText("empty worker").closest('[data-testid="board-session-card"]') as HTMLElement;
-		const emptyCost = within(emptyCard).getAllByText("Unavailable");
-		expect(emptyCost).toHaveLength(2);
-		expect(emptyCost.some((node) => node.getAttribute("aria-hidden") === "true")).toBe(true);
-		expect(emptyCost.some((node) => node.classList.contains("sr-only"))).toBe(true);
+		expect(within(emptyCard).queryByText(/unavailable/i)).not.toBeInTheDocument();
+		expect(within(emptyCard).queryByRole("button", { name: /tokens|estimated cost/i })).not.toBeInTheDocument();
+		expect(within(emptyCard).queryByText("·")).not.toBeInTheDocument();
 		const tokensOnlyCard = screen.getByText("tokens worker").closest('[data-testid="board-session-card"]') as HTMLElement;
-		expect(within(tokensOnlyCard).getByText("Unavailable · 800")).toHaveAttribute("aria-hidden", "true");
-		expect(within(tokensOnlyCard).getByText("Unavailable · 800 tokens")).toHaveClass("sr-only");
+		expect(within(tokensOnlyCard).getByText("800")).toHaveAttribute("aria-hidden", "true");
+		expect(within(tokensOnlyCard).getByText("800 tokens")).toHaveClass("sr-only");
+		expect(within(tokensOnlyCard).queryByText(/unavailable/i)).not.toBeInTheDocument();
 		expect(tokensOnlyCard).not.toHaveTextContent(/[≈≥]\$/);
 		expect(usageQueryMock).toHaveBeenCalledWith("p1");
 
 		const archive = await expandArchive();
-		expect(within(archive).getByText("$0.02 · 1,900 tokens")).toHaveClass("sr-only");
+		expect(within(archive).getByText("Estimated cost: $0.02")).toHaveClass("sr-only");
+		expect(within(archive).queryByText("1.9K")).not.toBeInTheDocument();
 	});
 
-	// The breakdown lived behind a tooltip whose trigger was a real button, so
-	// every priced card added a tab stop between the terminate control and the
-	// next card. A board is for scanning; the per-component figures belong on
-	// the session's own surface, so the metric is plain text again.
-	it("shows the usage metric as plain text without a tab stop or tooltip", async () => {
+	it("reveals the shared usage and cost breakdown on metric focus and hover", async () => {
 		workspaceQueryMock.mockReturnValue({
 			data: [
 				workspaceWithSessions([
@@ -432,6 +483,14 @@ describe("SessionsBoard", () => {
 						sessionId: "s-keyboard",
 						processedTokens: 12_400,
 						totalTokens: 12_400,
+						totals: usageTotals(12_400, {
+							cachedInputNanos: 100_000_000,
+							coverage: "complete",
+							inputNanos: 540_000_000,
+							outputNanos: 600_000_000,
+							providerAttribution: "observed",
+							totalNanos: 1_240_000_000,
+						}),
 					},
 				],
 			]),
@@ -440,22 +499,21 @@ describe("SessionsBoard", () => {
 		renderBoard("p1");
 
 		const card = screen.getByText("keyboard worker").closest('[data-testid="board-session-card"]') as HTMLElement;
-		const usage = within(card).getByText("$1.24 · 12.4K");
-		expect(usage.tagName).toBe("SPAN");
-		// The compact text is decorative; the full label is real off-screen text
-		// rather than an aria-label on a generic span, which is not reliably
-		// exposed. Neither is a tab stop and neither opens a tooltip.
+		const usage = within(card).getByText("$1.24");
 		expect(usage).toHaveAttribute("aria-hidden", "true");
-		expect(within(card).getByText("$1.24 · 12,400 tokens")).toHaveClass("sr-only");
-		expect(within(card).queryByRole("button", { name: /Estimated cost/ })).not.toBeInTheDocument();
+		const usageButton = within(card).getByRole("button", { name: "Estimated cost: $1.24" });
 
-		within(card).getByRole("button", { name: "keyboard worker" }).focus();
-		await userEvent.tab();
-		expect(within(card).getByRole("button", { name: "Terminate keyboard worker" })).toHaveFocus();
+		act(() => usageButton.focus());
+		const focusedTooltip = await screen.findByRole("tooltip");
+		expect(within(focusedTooltip).getByText("Fresh Input")).toBeInTheDocument();
+		expect(within(focusedTooltip).getByText("Cache Reads")).toBeInTheDocument();
+		expect(within(focusedTooltip).getByText("$0.54")).toBeInTheDocument();
+		expect(within(focusedTooltip).getByText("$0.10")).toBeInTheDocument();
+		expect(within(focusedTooltip).getByText("$0.60")).toBeInTheDocument();
 
+		act(() => usageButton.blur());
 		await userEvent.hover(usage);
-		expect(screen.queryByRole("tooltip")).not.toBeInTheDocument();
-		expect(card).not.toHaveTextContent("Cached input");
+		expect(await screen.findByRole("tooltip")).toHaveTextContent("Calculated using published API list prices");
 	});
 
 	it("pulses the shared activity indicator on an actively working session card", () => {
@@ -1446,6 +1504,24 @@ function workspaceWithSessions(sessions: WorkspaceSession[]): WorkspaceSummary {
 		name: "radic",
 		path: "/tmp/radic",
 		sessions,
+	};
+}
+
+function usageTotals(
+	processedTokens: number,
+	estimatedCost: components["schemas"]["EstimatedCostResponse"] | null,
+): components["schemas"]["UsageTotalsResponse"] {
+	const outputTokens = processedTokens > 0 ? Math.min(400, Math.floor(processedTokens / 10)) : 0;
+	const inputTokens = processedTokens - outputTokens;
+	const cachedInputTokens = inputTokens > 0 ? Math.min(1_000, Math.floor(inputTokens / 2)) : 0;
+	return {
+		cacheReadTokens: cachedInputTokens,
+		cachedInputTokens,
+		estimatedCost,
+		inputTokens,
+		outputTokens,
+		processedTokens,
+		uncachedInputTokens: inputTokens - cachedInputTokens,
 	};
 }
 
