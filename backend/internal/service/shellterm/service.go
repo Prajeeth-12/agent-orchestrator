@@ -225,8 +225,8 @@ func (s *Service) OpenShellTerminal(ctx context.Context, in OpenShellTerminalInp
 	}
 	argv, usedFallback := resolveUserLoginShell(in.Shell)
 	if usedFallback {
-		s.log.Warn("requested shell terminal executable was unavailable; using automatic Windows shell resolution",
-			"shell", in.Shell)
+		return ShellTerminal{}, apierr.Invalid("SHELL_TERMINAL_SHELL_UNAVAILABLE",
+			fmt.Sprintf("The selected shell is unavailable: %s. Choose another shell in Settings.", in.Shell), nil)
 	}
 	if len(argv) == 0 {
 		return ShellTerminal{}, apierr.Internal("SHELL_TERMINAL_NO_SHELL",
