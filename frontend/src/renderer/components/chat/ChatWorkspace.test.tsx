@@ -359,9 +359,15 @@ describe("ChatWorkspace timeline", () => {
 		const workerTab = screen.getByRole("tab", { name: chatSession.title });
 		expect(workerTab).toHaveTextContent(chatSession.title);
 		expect(workerTab).not.toHaveTextContent("Codex");
-		expect(workerTab.querySelector('img[aria-hidden="true"]')).toBeInTheDocument();
+		expect(within(workerTab).getByRole("img", { name: chatFixture.harness })).toBeInTheDocument();
 
-		view.rerender(<ChatWorkspace snapshot={chatFixture} session={chatSession} sessionRole="orchestrator" />);
+		view.rerender(
+			<ChatWorkspace
+				snapshot={chatFixture}
+				session={{ ...chatSession, id: "ao-demo-orchestrator", kind: "orchestrator" }}
+				sessionRole="orchestrator"
+			/>,
+		);
 
 		expect(screen.getByLabelText("Chat")).toHaveAttribute("data-session-role", "orchestrator");
 		expect(screen.getByTestId("session-workspace-topbar")).toBeInTheDocument();
@@ -369,7 +375,15 @@ describe("ChatWorkspace timeline", () => {
 		const orchestratorTab = screen.getByRole("tab", { name: "Orchestrator" });
 		expect(orchestratorTab).not.toHaveTextContent(chatSession.title);
 		expect(orchestratorTab).not.toHaveTextContent("Codex");
-		expect(orchestratorTab.querySelector('img[aria-hidden="true"]')).toBeInTheDocument();
+		expect(within(orchestratorTab).getByRole("img", { name: chatFixture.harness })).toBeInTheDocument();
+
+		view.rerender(
+			<ChatWorkspace
+				snapshot={chatFixture}
+				session={{ ...chatSession, id: "legacy-orchestrator", kind: undefined }}
+			/>,
+		);
+		expect(screen.getByRole("tab", { name: "Orchestrator" })).toBeInTheDocument();
 	});
 
 	it("clears the fixed titlebar nav when the sidebar is collapsed, like the terminal session", () => {

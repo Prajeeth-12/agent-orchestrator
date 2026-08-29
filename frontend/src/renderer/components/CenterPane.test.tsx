@@ -570,7 +570,7 @@ describe("CenterPane toolbar session label", () => {
 		expect(sessionTab).not.toHaveClass("rounded-md");
 		expect(sessionTab).toHaveAccessibleName("do the thing · Working");
 		expect(sessionTab.querySelector('[title="Working"]')).toBeInTheDocument();
-		expect(sessionTab.querySelector('img[aria-hidden="true"]')).toBeInTheDocument();
+		expect(within(sessionTab).getByRole("img", { name: worker.provider })).toBeInTheDocument();
 		expect(screen.queryByRole("tab", { name: "review the change" })).not.toBeInTheDocument();
 	});
 
@@ -607,7 +607,7 @@ describe("CenterPane toolbar session label", () => {
 				name: /close/i,
 			}),
 		).not.toBeInTheDocument();
-		expect(mainContainer?.querySelector('img[aria-hidden="true"]')).toBeInTheDocument();
+		expect(within(mainContainer as HTMLElement).getByRole("img", { name: worker.provider })).toBeInTheDocument();
 		expect(within(mainContainer as HTMLElement).queryByText("Claude Code")).not.toBeInTheDocument();
 
 		const auxiliaryTab = screen.getByRole("tab", { name: shell.title });
@@ -625,7 +625,7 @@ describe("CenterPane toolbar session label", () => {
 		const ownerTab = screen.getByRole("tab", { name: /^do the thing/ });
 		const ownerCard = ownerTab;
 		const scrollRegion = document.querySelector(".overflow-x-auto");
-		const avatar = ownerCard?.querySelector('img[aria-hidden="true"]');
+		const avatar = within(ownerCard as HTMLElement).getByRole("img", { name: worker.provider });
 
 		expect(ownerCard).toHaveClass("min-w-0", "shrink", "overflow-hidden");
 		expect(ownerCard).not.toHaveClass("w-full", "max-w-full");
@@ -772,7 +772,7 @@ describe("CenterPane toolbar session label", () => {
 		expect(orchestratorTab).toHaveTextContent("Orchestrator");
 		expect(orchestratorTab).not.toHaveTextContent("Claude Code");
 		expect(orchestratorTab).not.toHaveTextContent(worker.title);
-		expect(orchestratorTab.querySelector('img[aria-hidden="true"]')).toBeInTheDocument();
+		expect(within(orchestratorTab).getByRole("img", { name: worker.provider })).toBeInTheDocument();
 	});
 
 	it("shows 'No session' when there is no session", () => {

@@ -875,7 +875,9 @@ function SessionPaneTab({
 	const activityLabel = activity?.label;
 	const activityTone = activity?.tone;
 	const activityBreathe = activity?.breathe;
-	const tabIcon = session ? <AgentAvatar className="size-terminal-agent-icon" decorative provider={session.provider} /> : icon;
+	const tabIcon = session ? (
+		<AgentAvatar className="size-terminal-agent-icon" decorative={false} provider={session.provider} />
+	) : icon;
 	const connected = appearance === "connected";
 	return (
 		<button

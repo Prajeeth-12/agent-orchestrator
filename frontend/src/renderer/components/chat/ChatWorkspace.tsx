@@ -45,7 +45,11 @@ import { handleTerminalTabListKeyDown } from "../../lib/terminal-tabs";
 import type { ShellTerminal } from "../../hooks/useShellTerminals";
 import { sidebarOccupiesLayout, useUiStore } from "../../stores/ui-store";
 import type { TerminalTarget } from "../../types/terminal";
-import type { SessionKind, WorkspaceSession } from "../../types/workspace";
+import {
+	isOrchestratorSession,
+	type SessionKind,
+	type WorkspaceSession,
+} from "../../types/workspace";
 import { AgentAvatar } from "../AgentAvatar";
 import { Button } from "../ui/button";
 import { ConfirmDialog } from "../ConfirmDialog";
@@ -356,6 +360,9 @@ export function ChatWorkspace({
 	mcpReloadError,
 }: ChatWorkspaceProps) {
 	const { t } = useTranslation();
+	const sessionIsOrchestrator = session
+		? isOrchestratorSession(session)
+		: sessionRole === "orchestrator";
 	const turn = activeTurn(snapshot);
 	const hasPendingInteraction = snapshot.items.some(
 		(item) =>
@@ -707,7 +714,7 @@ export function ChatWorkspace({
 			<ChatHeader
 				snapshot={snapshot}
 				sessionLabel={
-					sessionRole === "orchestrator"
+					sessionIsOrchestrator
 						? t("shell.orchestrator")
 						: (sessionTitle || session?.title || snapshot.title || snapshot.sessionId)
 				}
@@ -1146,7 +1153,7 @@ function ChatHeader({
 							title={sessionLabel}
 							type="button"
 						>
-							<AgentAvatar className="size-icon-base" decorative provider={snapshot.harness} />
+							<AgentAvatar className="size-icon-base" decorative={false} provider={snapshot.harness} />
 							<span className="truncate">{sessionLabel}</span>
 						</button>
 						{reviewerTerminal ? (
