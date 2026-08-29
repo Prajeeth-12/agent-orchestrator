@@ -29,6 +29,7 @@ import {
 	type WheelEvent as ReactWheelEvent,
 } from "react";
 import { ArrowDown, CornerDownRight, Loader2, TriangleAlert, Undo2 } from "lucide-react";
+import { useTranslation } from "react-i18next";
 import { cn } from "../../lib/utils";
 import { sameContent, useStableList } from "../../lib/stable-list";
 import { getApiBaseUrl, subscribeApiBaseUrl } from "../../lib/api-client";
@@ -41,7 +42,6 @@ import {
 } from "../../lib/design-tokens";
 import { isLinuxPlatform, isMacPlatform } from "../../lib/platform";
 import { handleTerminalTabListKeyDown } from "../../lib/terminal-tabs";
-import { agentLabel } from "../../lib/agent-options";
 import type { ShellTerminal } from "../../hooks/useShellTerminals";
 import { sidebarOccupiesLayout, useUiStore } from "../../stores/ui-store";
 import type { TerminalTarget } from "../../types/terminal";
@@ -284,6 +284,7 @@ export interface ChatWorkspaceProps {
 
 export function ChatWorkspace({
 	snapshot,
+	sessionTitle,
 	sessionRole = "worker",
 	headerActions,
 	workspaceTabs,
@@ -354,6 +355,7 @@ export function ChatWorkspace({
 	reloadingMcpServers,
 	mcpReloadError,
 }: ChatWorkspaceProps) {
+	const { t } = useTranslation();
 	const turn = activeTurn(snapshot);
 	const hasPendingInteraction = snapshot.items.some(
 		(item) =>
@@ -704,6 +706,11 @@ export function ChatWorkspace({
 		>
 			<ChatHeader
 				snapshot={snapshot}
+				sessionLabel={
+					sessionRole === "orchestrator"
+						? t("shell.orchestrator")
+						: (sessionTitle || session?.title || snapshot.title || snapshot.sessionId)
+				}
 				reviewerTerminal={reviewerTerminal}
 				onOpenReviewerTerminal={onOpenReviewerTerminal}
 				reviewerActive={reviewerActive}
@@ -1050,6 +1057,7 @@ function readableItems(snapshot: ConversationSnapshot): ConversationItem[] {
 
 function ChatHeader({
 	snapshot,
+	sessionLabel,
 	reviewerTerminal,
 	onOpenReviewerTerminal,
 	reviewerActive,
@@ -1068,6 +1076,7 @@ function ChatHeader({
 	topbarBounds,
 }: {
 	snapshot: ConversationSnapshot;
+	sessionLabel: string;
 	reviewerTerminal?: { handleId: string; harness: string };
 	onOpenReviewerTerminal?: (target: { handleId: string; harness: string }) => void;
 	/** The reviewer tab is selected; the chat tab is the clickable alternative. */
@@ -1091,7 +1100,6 @@ function ChatHeader({
 	inline?: boolean;
 	topbarBounds: TopbarBounds;
 }) {
-	const label = agentLabel(snapshot.harness);
 	// The chat tab is "selected" only when neither terminal pane is the body.
 	const timelineActive = !workspaceFileActive && !reviewerActive && !shellActiveHandleId;
 	// Match CenterPane: when the sidebar is off-canvas, the fixed TitlebarNav
@@ -1123,7 +1131,7 @@ function ChatHeader({
 					>
 						<button
 							aria-current={timelineActive ? true : undefined}
-							aria-label={label}
+							aria-label={sessionLabel}
 							aria-selected={timelineActive}
 							data-terminal-role="primary"
 							className={cn(
@@ -1135,11 +1143,11 @@ function ChatHeader({
 							onClick={timelineActive ? undefined : onSelectChat}
 							role="tab"
 							tabIndex={timelineActive || (!reviewerTerminal && !shellTerminals?.length) ? 0 : -1}
-							title={label}
+							title={sessionLabel}
 							type="button"
 						>
 							<AgentAvatar className="size-icon-base" decorative provider={snapshot.harness} />
-							<span className="truncate">{label}</span>
+							<span className="truncate">{sessionLabel}</span>
 						</button>
 						{reviewerTerminal ? (
 							<button

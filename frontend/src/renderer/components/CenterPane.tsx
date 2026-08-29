@@ -279,7 +279,7 @@ export function CenterPane({
 	const sessionTabLabel = session
 		? isOrchestratorSession(session)
 			? t("shell.orchestrator")
-			: agentLabel(session.provider)
+			: session.title
 		: t("terminal.noSession");
 	const activeTerminalLabel =
 		target.kind === "shell"

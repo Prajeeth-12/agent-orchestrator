@@ -350,19 +350,26 @@ describe("ChatWorkspace timeline", () => {
 		expect(onDecide).toHaveBeenCalledWith("drain-approval", "allow_once");
 	});
 
-	it("uses the shared session topbar chrome for workers and orchestrators", () => {
-		const view = render(<ChatWorkspace snapshot={chatFixture} sessionRole="worker" />);
+	it("labels worker and orchestrator primary tabs while the avatar alone signals the harness", () => {
+		const view = render(<ChatWorkspace snapshot={chatFixture} session={chatSession} sessionRole="worker" />);
 
 		expect(screen.getByLabelText("Chat")).toHaveAttribute("data-session-role", "worker");
 		expect(screen.getByTestId("session-workspace-topbar")).toBeInTheDocument();
 		expect(screen.getByTestId("session-terminal-region")).toBeInTheDocument();
-		expect(screen.getByRole("tab", { name: chatFixture.title })).toBeInTheDocument();
+		const workerTab = screen.getByRole("tab", { name: chatSession.title });
+		expect(workerTab).toHaveTextContent(chatSession.title);
+		expect(workerTab).not.toHaveTextContent("Codex");
+		expect(workerTab.querySelector('img[aria-hidden="true"]')).toBeInTheDocument();
 
-		view.rerender(<ChatWorkspace snapshot={chatFixture} sessionRole="orchestrator" />);
+		view.rerender(<ChatWorkspace snapshot={chatFixture} session={chatSession} sessionRole="orchestrator" />);
 
 		expect(screen.getByLabelText("Chat")).toHaveAttribute("data-session-role", "orchestrator");
 		expect(screen.getByTestId("session-workspace-topbar")).toBeInTheDocument();
 		expect(screen.getByTestId("session-action-region")).toBeInTheDocument();
+		const orchestratorTab = screen.getByRole("tab", { name: "Orchestrator" });
+		expect(orchestratorTab).not.toHaveTextContent(chatSession.title);
+		expect(orchestratorTab).not.toHaveTextContent("Codex");
+		expect(orchestratorTab.querySelector('img[aria-hidden="true"]')).toBeInTheDocument();
 	});
 
 	it("clears the fixed titlebar nav when the sidebar is collapsed, like the terminal session", () => {
@@ -1798,7 +1805,7 @@ describe("ChatWorkspace reviewer tabs", () => {
 			/>,
 		);
 
-		const chatTab = screen.getByRole("tab", { name: "Codex" });
+		const chatTab = screen.getByRole("tab", { name: "Reviewer chat" });
 		const reviewerTab = screen.getByRole("tab", { name: "Reviewer" });
 		expect(chatTab).toHaveClass("self-stretch", "px-3", "cursor-pointer");
 		expect(reviewerTab).toHaveClass(
@@ -1940,7 +1947,7 @@ describe("ChatWorkspace reviewer tabs", () => {
 		};
 		const view = render(<ChatWorkspace {...common} />);
 		const chatTab = screen.getByRole("tab", {
-			name: "Codex",
+			name: "Reviewer chat",
 		});
 		const reviewerTab = screen.getByRole("tab", { name: "Reviewer" });
 		expect(chatTab).toHaveAttribute("tabindex", "0");
@@ -1964,7 +1971,7 @@ describe("ChatWorkspace reviewer tabs", () => {
 
 		view.rerender(<ChatWorkspace {...common} reviewerTarget={reviewerTarget} />);
 		const activeReviewerTab = screen.getByRole("tab", { name: "Reviewer" });
-		expect(screen.getByRole("tab", { name: "Codex" })).toHaveAttribute(
+		expect(screen.getByRole("tab", { name: "Reviewer chat" })).toHaveAttribute(
 			"tabindex",
 			"-1",
 		);
@@ -1973,7 +1980,7 @@ describe("ChatWorkspace reviewer tabs", () => {
 		activeReviewerTab.focus();
 		fireEvent.keyDown(activeReviewerTab, { key: "Home" });
 		expect(onSelectChat).toHaveBeenCalledOnce();
-		expect(screen.getByRole("tab", { name: "Codex" })).toHaveFocus();
+		expect(screen.getByRole("tab", { name: "Reviewer chat" })).toHaveFocus();
 
 		onSelectChat.mockClear();
 		activeReviewerTab.focus();
@@ -2143,7 +2150,7 @@ describe("ChatWorkspace shell tabs", () => {
 			/>,
 		);
 
-		const workerTab = screen.getByRole("tab", { name: "Codex" });
+		const workerTab = screen.getByRole("tab", { name: "Reviewer chat" });
 		workerTab.focus();
 		fireEvent.keyDown(workerTab, { key: "Tab", ctrlKey: true });
 
